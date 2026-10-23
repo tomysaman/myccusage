@@ -5,9 +5,9 @@
 # Requires node and the GitHub CLI (`gh`), logged in to an account that can read the repo.
 #
 # Usage:
-#   ./update-data.sh                         # fetch from GitHub
-#   ./update-data.sh --repo owner/name       # different source repo
-#   ./update-data.sh --source path/to/data.js  # use a local copy instead
+#   ./scripts/update-data.sh                         # fetch from GitHub
+#   ./scripts/update-data.sh --repo owner/name       # different source repo
+#   ./scripts/update-data.sh --source path/to/data.js  # use a local copy instead
 #
 # Only per-day, per-model token/cost totals are kept (machines summed
 # together). Nothing with a time of day is written: blocks, sessions,
@@ -27,7 +27,7 @@ done
 
 command -v node >/dev/null || { echo "node not found on PATH" >&2; exit 1; }
 
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 

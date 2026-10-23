@@ -1,6 +1,6 @@
 # Updating the data
 
-The data comes from my private `ccusage` repo. `update-data.ps1` (or `update-data.sh`) downloads its merged data and writes `data.js` with per-day, per-model token and cost totals, with all machines summed together.
+The data comes from my private `ccusage` repo. `scripts/update-data.ps1` (or `scripts/update-data.sh`) downloads its merged data and writes `data.js` with per-day, per-model token and cost totals, with all machines summed together.
 
 Nothing with a time of day is published. Billing blocks, session ids, project names, machine tags and raw ccusage output are left out.
 
@@ -11,13 +11,13 @@ You need the [GitHub CLI](https://cli.github.com/), logged in (`gh auth login`) 
 Windows PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\update-data.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\update-data.ps1
 ```
 
 macOS (needs `node`):
 
 ```sh
-./update-data.sh
+./scripts/update-data.sh
 ```
 
 Both scripts write the same `data.js`.
