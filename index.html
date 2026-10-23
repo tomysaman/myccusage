@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Usage &amp; Cost</title>
+<style>
+:root {
+	--page: #f9f9f7;
+	--surface: #fcfcfb;
+	--ink: #0b0b0b;
+	--ink-2: #52514e;
+	--muted: #898781;
+	--grid: #e1e0d9;
+	--axis: #c3c2b7;
+	--border: rgba(11, 11, 11, 0.10);
+	--good: #0ca30c;
+	--s1: #2a78d6; --s2: #22a9dd; --s3: #eda100; --s4: #008300;
+	--s5: #4a3aa7; --s6: #e34948; --s7: #e87ba4; --s8: #eb6834;
+	/* older-version shade per slot: same hue, OKLCH L stepped 0.17 away from the base */
+	--s1b: #02478f; --s2b: #067399; --s3b: #a97201; --s4b: #4fb949;
+	--s5b: #776ee0; --s6b: #a40119; --s7b: #ae4771; --s8b: #a83a00;
+}
+@media (prefers-color-scheme: dark) {
+	:root {
+		--page: #0d0d0d;
+		--surface: #1a1a19;
+		--ink: #ffffff;
+		--ink-2: #c3c2b7;
+		--muted: #898781;
+		--grid: #2c2c2a;
+		--axis: #383835;
+		--border: rgba(255, 255, 255, 0.10);
+		--good: #0ca30c;
+		--s1: #3987e5; --s2: #45b4ee; --s3: #c98500; --s4: #008300;
+		--s5: #9085e9; --s6: #e66767; --s7: #d55181; --s8: #d95926;
+		--s1b: #8dbefe; --s2b: #017eb1; --s3b: #875805; --s4b: #4fb949;
+		--s5b: #6051b0; --s6b: #ab3037; --s7b: #ff97b7; --s8b: #fe9f7e;
+	}
+}
+* { box-sizing: border-box; margin: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+	background: var(--page);
+	color: var(--ink);
+	font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.wrap { max-width: 1560px; margin: 0 auto; padding: 28px 20px 56px; }
+
+header h1 { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; }
+header .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+/* ---- filter row ---- */
+.filters {
+	display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+	margin-top: 18px;
+}
+.chip-group { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.chip {
+	appearance: none; border: 1px solid var(--border); background: var(--surface);
+	color: var(--ink-2); font: inherit; font-size: 13px;
+	padding: 4px 12px; border-radius: 999px; cursor: pointer;
+	display: inline-flex; align-items: center; gap: 6px;
+}
+.chip:hover { background: color-mix(in srgb, var(--ink) 6%, var(--surface)); }
+.chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--page); }
+.chip .swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.chip.within { border-color: var(--ink); color: var(--ink); }
+.chip.ver { font-size: 12px; padding: 3px 9px; }
+.divider { width: 1px; align-self: stretch; background: var(--border); margin: 2px 4px; }
+.pnav { display: flex; align-items: center; gap: 2px; }
+.pnav button {
+	appearance: none; border: 1px solid var(--border); background: var(--surface);
+	color: var(--ink-2); font: inherit; width: 26px; height: 26px; border-radius: 8px;
+	cursor: pointer; line-height: 1;
+}
+.pnav button:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 6%, var(--surface)); }
+.pnav button:disabled { opacity: 0.35; cursor: default; }
+.pnav .plabel { min-width: 110px; text-align: center; font-weight: 600; font-size: 13px; padding: 0 6px; }
+
+/* ---- KPI tiles ---- */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 12px; margin-top: 16px; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.tile .tlabel { color: var(--ink-2); font-size: 12px; }
+.tile .tvalue { font-size: 24px; font-weight: 620; margin-top: 4px; letter-spacing: -0.01em; }
+.tile.hero .tvalue { font-size: 34px; }
+.tile .tdelta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.tile .tavg { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+/* ---- cards ---- */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-top: 16px; position: relative; }
+.card h2 { font-size: 14px; font-weight: 650; }
+.card .sub { color: var(--muted); font-size: 12px; margin-top: 1px; }
+.card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; justify-content: space-between; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 10px; }
+.legend .lkey { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 12px; }
+.legend .swatch { width: 10px; height: 10px; border-radius: 3px; }
+.empty { color: var(--muted); padding: 28px 0; text-align: center; }
+
+/* ---- chart ---- */
+.chart-box { margin-top: 8px; }
+.chart-box svg { display: block; }
+.hitband { fill: transparent; outline: none; }
+.hitband:focus-visible { fill: color-mix(in srgb, var(--ink) 5%, transparent); }
+.tooltip {
+	position: absolute; z-index: 10; pointer-events: none; display: none;
+	background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14); padding: 8px 10px; min-width: 160px; font-size: 12px;
+}
+.tooltip .tt-title { font-weight: 650; margin-bottom: 4px; }
+.tooltip .tt-row { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.tooltip .tt-row .lk { width: 12px; height: 3px; border-radius: 2px; flex: none; }
+.tooltip .tt-row .nm { color: var(--ink-2); flex: 1 1 auto; padding-right: 10px; }
+.tooltip .tt-row .vl { font-weight: 650; font-variant-numeric: tabular-nums; }
+
+/* ---- share bar ---- */
+.legend .lval { color: var(--muted); font-variant-numeric: tabular-nums; }
+.sharebar { display: flex; height: 14px; margin-top: 12px; border-radius: 4px; overflow: hidden; gap: 2px; background: transparent; }
+.sharebar i { display: block; height: 100%; }
+.note { color: var(--muted); font-size: 12px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+	<header>
+		<h1>Claude Usage &amp; Cost</h1>
+		<div class="meta" id="meta"></div>
+	</header>
+	<div id="content"></div>
+</div>
+
+<script src="data.js"></script>
+<script>
+"use strict";
+(function () {
+	const DATA = window.USAGE_DATA;
+	const content = document.getElementById("content");
+
+	function el(tag, attrs, ...children) {
+		const n = document.createElement(tag);
+		for (const [k, v] of Object.entries(attrs || {})) {
+			if (v == null) continue; // null/undefined means "attribute absent"
+			if (k === "class") n.className = v;
+			else if (k === "text") n.textContent = v;
+			else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+			else n.setAttribute(k, v);
+		}
+		for (const c of children) if (c != null) n.append(c);
+		return n;
+	}
+	const SVGNS = "http://www.w3.org/2000/svg";
+	function svg(tag, attrs, ...children) {
+		const n = document.createElementNS(SVGNS, tag);
+		for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v);
+		for (const c of children) if (c != null) n.append(c);
+		return n;
+	}
+
+	if (!DATA || !Array.isArray(DATA.daily) || DATA.daily.length === 0) {
+		content.append(el("div", { class: "card" },
+			el("div", { class: "empty", text: "No data yet — run ./update-data.ps1 to build data.js." })));
+		return;
+	}
+
+	// ---- expand the compact data.js arrays (see update-data.ps1) into record shapes ----
+	const daily = DATA.daily.map(([period, rows]) => {
+		const r = { period, totalCost: 0, inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 };
+		r.modelBreakdowns = rows.map(([mi, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, cost]) => {
+			r.totalCost += cost;
+			r.inputTokens += inputTokens;
+			r.outputTokens += outputTokens;
+			r.cacheCreationTokens += cacheCreationTokens;
+			r.cacheReadTokens += cacheReadTokens;
+			return { modelName: DATA.models[mi], inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, cost };
+		});
+		return r;
+	}).sort((a, b) => a.period.localeCompare(b.period));
+
+	const pad = n => String(n).padStart(2, "0");
+	const dstr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+	const parseDay = s => new Date(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
+
+	// ---- model identity: fixed slot order, color follows the entity ----
+	const modelSet = new Set();
+	for (const d of daily) for (const b of d.modelBreakdowns || []) modelSet.add(b.modelName);
+	// Color encodes the family, not the model: one pinned hue per family
+	// (Fable=violet, Opus=sky blue, Sonnet=yellow, Haiku=green; unknown families
+	// take the leftover slots alphabetically). Within a family the newest version
+	// is solid; every older version shares the slot's validated second shade
+	// (--sNb) plus a diagonal hatch, so a new release never needs a new color.
+	const FAMILY_SLOTS = { fable: 5, opus: 2, sonnet: 3, haiku: 4 };
+	const FREE_SLOTS = [1, 6, 7, 8];
+	// "claude-opus-5-5" / "claude-haiku-4-5-20251001" / "claude-3-5-sonnet-20241022"
+	// -> { family: "opus", ver: [5, 5] } etc. (date suffixes dropped)
+	const modelInfo = new Map();
+	function parseModel(m) {
+		if (!modelInfo.has(m)) {
+			const parts = m.replace(/^claude-/, "").split("-").filter(p => !/^\d{8}$/.test(p));
+			const family = parts.find(p => /^[a-z]/i.test(p)) || parts[0];
+			modelInfo.set(m, { family, ver: parts.filter(p => /^\d+$/.test(p)).map(Number) });
+		}
+		return modelInfo.get(m);
+	}
+	const familyOf = m => parseModel(m).family;
+	const famLabel = f => f.charAt(0).toUpperCase() + f.slice(1);
+	const verLabel = m => parseModel(m).ver.join(".");
+	const cmpVer = (a, b) => { for (let i = 0; i < Math.max(a.length, b.length); i++) { const d = (a[i] || 0) - (b[i] || 0); if (d) return d; } return 0; };
+	// display order everywhere (chips, legend, stack, share bar): Fable, Opus, Sonnet, Haiku,
+	// then unknown families; newest version first within a family
+	const FAMILY_ORDER = ["fable", "opus", "sonnet", "haiku"];
+	const familyRank = m => { const i = FAMILY_ORDER.indexOf(familyOf(m)); return i < 0 ? FAMILY_ORDER.length : i; };
+	const MODELS = [...modelSet].sort((a, b) => familyRank(a) - familyRank(b) || familyOf(a).localeCompare(familyOf(b))
+		|| cmpVer(parseModel(b).ver, parseModel(a).ver) || a.localeCompare(b));
+	const FAMILIES = [...new Set(MODELS.map(familyOf))];
+	const famSlot = new Map();
+	{
+		const free = FREE_SLOTS.filter(s => !FAMILIES.some(f => FAMILY_SLOTS[f] === s));
+		for (const f of FAMILIES) {
+			if (FAMILY_SLOTS[f]) famSlot.set(f, FAMILY_SLOTS[f]);
+			else if (free.length) famSlot.set(f, free.shift());
+		}
+	}
+	// 0 = newest in its family; ranked over all data so colors don't shift with the range/filter
+	const versionRank = new Map();
+	for (const f of FAMILIES) MODELS.filter(m => familyOf(m) === f).forEach((m, i) => versionRank.set(m, i));
+	const familyModels = f => MODELS.filter(m => familyOf(m) === f);
+
+	// Paint for a model or chart series key (see foldSeries): a family slot, solid or hatched.
+	// fillOf() is for HTML backgrounds, svgFillOf() for SVG fills (patterns in #hatch-N).
+	// Never hardcode a color for a specific model — go through these.
+	const OTHER = "__other__";
+	function paintOf(k) {
+		if (k === OTHER) return null;
+		if (k.startsWith("older:")) { const s = famSlot.get(k.slice(6)); return s ? { slot: s, older: true } : null; }
+		const s = famSlot.get(familyOf(k));
+		return s ? { slot: s, older: versionRank.get(k) > 0 } : null;
+	}
+	// flat: marks too small to show a hatch (tooltip keys) get the plain older shade
+	function fillOf(k, flat) {
+		const p = paintOf(k);
+		if (!p) return "var(--muted)";
+		if (flat) return `var(--s${p.slot}${p.older ? "b" : ""})`;
+		return p.older ? `repeating-linear-gradient(135deg, var(--s${p.slot}b) 0 3px, var(--surface) 3px 4.5px)` : `var(--s${p.slot})`;
+	}
+	const famFill = f => famSlot.has(f) ? `var(--s${famSlot.get(f)})` : "var(--muted)";
+	function svgFillOf(k) {
+		const p = paintOf(k);
+		if (!p) return "var(--muted)";
+		return p.older ? `url(#hatch-${p.slot})` : `var(--s${p.slot})`;
+	}
+	{
+		const defs = svg("defs", {});
+		for (let n = 1; n <= 8; n++) {
+			defs.append(svg("pattern", { id: `hatch-${n}`, patternUnits: "userSpaceOnUse", width: 4.5, height: 4.5, patternTransform: "rotate(45)" },
+				svg("rect", { width: 4.5, height: 4.5, fill: `var(--s${n}b)` }),
+				svg("rect", { x: 3, width: 1.5, height: 4.5, fill: "var(--surface)" })));
+		}
+		document.body.append(svg("svg", { width: 0, height: 0, style: "position:absolute", "aria-hidden": "true" }, defs));
+	}
+	function prettyModel(m) {
+		const { family, ver } = parseModel(m);
+		return ver.length ? `${famLabel(family)} ${ver.join(".")}` : famLabel(family);
+	}
+
+	// ---- formatting ----
+	const fmtUSD = v => "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+	const fmtUSDshort = v => v >= 1000 ? "$" + (v / 1000).toFixed(1) + "K" : v >= 10 ? "$" + Math.round(v) : "$" + v.toFixed(2);
+	function fmtTok(v) {
+		if (v >= 1e9) return (v / 1e9).toFixed(2) + "B";
+		if (v >= 1e6) return (v / 1e6).toFixed(1) + "M";
+		if (v >= 1e3) return (v / 1e3).toFixed(1) + "K";
+		return String(Math.round(v));
+	}
+	const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+	const fmtDayLabel = s => `${MONTHS_SHORT[+s.slice(5, 7) - 1]} ${+s.slice(8, 10)}`;
+	const fmtMonthLabel = s => `${MONTHS_SHORT[+s.slice(5, 7) - 1]} ${s.slice(0, 4)}`;
+
+	// ---- state ----
+	const today = dstr(new Date());
+	const lastDataDay = daily.length ? daily[daily.length - 1].period : today;
+	const state = { range: "month", anchor: parseDay(lastDataDay), model: null, metric: "cost" };
+	// allow deep-linking the initial range, e.g. index.html#range=day
+	const hashRange = new URLSearchParams(location.hash.slice(1)).get("range");
+	if (["day", "week", "month", "year", "all"].includes(hashRange)) state.range = hashRange;
+	// state.model is null (all models), "fam:<family>" (every version of a family), or one model id
+	const isFamFilter = () => !!state.model && state.model.startsWith("fam:");
+	const modelMatch = m => !state.model || (isFamFilter() ? familyOf(m) === state.model.slice(4) : m === state.model);
+	const filterLabel = () => {
+		if (!state.model) return "";
+		if (!isFamFilter()) return prettyModel(state.model);
+		const ms = familyModels(state.model.slice(4));
+		return ms.length === 1 ? prettyModel(ms[0]) : famLabel(state.model.slice(4));
+	};
+
+	// ---- period math ----
+	function weekStart(d) { const r = new Date(d); r.setDate(r.getDate() - (r.getDay() + 6) % 7); return r; }
+	function periodBounds() {
+		const a = state.anchor;
+		switch (state.range) {
+			case "day": return [dstr(a), dstr(a)];
+			case "week": { const s = weekStart(a); const e = new Date(s); e.setDate(e.getDate() + 6); return [dstr(s), dstr(e)]; }
+			case "month": return [dstr(new Date(a.getFullYear(), a.getMonth(), 1)), dstr(new Date(a.getFullYear(), a.getMonth() + 1, 0))];
+			case "year": return [`${a.getFullYear()}-01-01`, `${a.getFullYear()}-12-31`];
+			default: return [null, null];
+		}
+	}
+	function shiftAnchor(dir) {
+		const a = new Date(state.anchor);
+		if (state.range === "day") a.setDate(a.getDate() + dir);
+		if (state.range === "week") a.setDate(a.getDate() + 7 * dir);
+		if (state.range === "month") a.setMonth(a.getMonth() + dir, 1);
+		if (state.range === "year") a.setFullYear(a.getFullYear() + dir, 0, 1);
+		state.anchor = a;
+	}
+	// number of day/month units elapsed in the period, used as the avg divisor.
+	// Always clamps to the actual data span (first data day..today), not just the
+	// calendar period, so a month that just started on the data's first day doesn't
+	// get averaged over days before any data existed. A single day has no average.
+	function avgDivisor(lo, hi) {
+		if (state.range === "day") return null;
+		const firstDataDay = daily.length ? daily[0].period : null;
+		if (!firstDataDay) return null;
+		if (state.range === "week" || state.range === "month") {
+			const effLo = lo > firstDataDay ? lo : firstDataDay;
+			const effHi = hi < today ? hi : today;
+			if (effLo > effHi) return null;
+			return Math.round((parseDay(effHi) - parseDay(effLo)) / 86400000) + 1;
+		}
+		if (state.range === "year") {
+			const y = state.anchor.getFullYear();
+			const yearLo = `${y}-01-01`, yearHi = `${y}-12-31`;
+			const effLo = yearLo > firstDataDay ? yearLo : firstDataDay;
+			const effHi = yearHi < today ? yearHi : today;
+			if (effLo > effHi) return null;
+			const [fy, fm] = effLo.slice(0, 7).split("-").map(Number);
+			const [ly, lm] = effHi.slice(0, 7).split("-").map(Number);
+			return (ly * 12 + lm) - (fy * 12 + fm) + 1;
+		}
+		// all time
+		const lastDataDayEff = daily[daily.length - 1].period < today ? daily[daily.length - 1].period : today;
+		const [fy, fm] = firstDataDay.slice(0, 7).split("-").map(Number);
+		const [ly, lm] = lastDataDayEff.slice(0, 7).split("-").map(Number);
+		return (ly * 12 + lm) - (fy * 12 + fm) + 1;
+	}
+	const avgUnit = () => (state.range === "week" || state.range === "month") ? "day" : "month";
+
+	function periodLabel() {
+		const a = state.anchor;
+		switch (state.range) {
+			case "day": return `${MONTHS_SHORT[a.getMonth()]} ${a.getDate()}, ${a.getFullYear()}`;
+			case "week": { const s = weekStart(a); return `Week of ${MONTHS_SHORT[s.getMonth()]} ${s.getDate()}`; }
+			case "month": return `${MONTHS_SHORT[a.getMonth()]} ${a.getFullYear()}`;
+			case "year": return String(a.getFullYear());
+			default: return "All time";
+		}
+	}
+
+	// ---- aggregation ----
+	const TOKEN_FIELDS = ["inputTokens", "outputTokens", "cacheCreationTokens", "cacheReadTokens"];
+	function zeroAgg() { return { cost: 0, inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 }; }
+	function addBreakdown(agg, b) {
+		agg.cost += b.cost || 0;
+		for (const f of TOKEN_FIELDS) agg[f] += b[f] || 0;
+	}
+	function addRecordTotals(agg, r) {
+		agg.cost += r.totalCost || 0;
+		for (const f of TOKEN_FIELDS) agg[f] += r[f] || 0;
+	}
+	function addAgg(agg, a) {
+		agg.cost += a.cost;
+		for (const f of TOKEN_FIELDS) agg[f] += a[f];
+	}
+	const totalTokens = a => a.inputTokens + a.outputTokens + a.cacheCreationTokens + a.cacheReadTokens;
+	// contribution of the current model filter (or the record's totals) to an aggregate
+	function recordSlice(r) {
+		const a = zeroAgg();
+		if (state.model) {
+			for (const b of r.modelBreakdowns || []) if (modelMatch(b.modelName)) addBreakdown(a, b);
+		} else addRecordTotals(a, r);
+		return a;
+	}
+
+	function inRange(day, lo, hi) { return (!lo || day >= lo) && (!hi || day <= hi); }
+
+	function aggregate(records) {
+		const a = zeroAgg();
+		for (const r of records) addAgg(a, recordSlice(r));
+		return a;
+	}
+
+	// ---- render root ----
+	document.getElementById("meta").textContent =
+		`Data as of ${fmtDayLabel(DATA.generatedAt)}, ${DATA.generatedAt.slice(0, 4)} · ${daily.length} days`;
+
+	function render() {
+		content.replaceChildren();
+		const [lo, hi] = periodBounds();
+		const dailyIn = daily.filter(r => inRange(r.period, lo, hi));
+
+		content.append(renderFilters(dailyIn));
+		content.append(renderKPIs(dailyIn, lo, hi));
+		content.append(renderTrend(dailyIn, lo, hi));
+		content.append(renderModelMix(dailyIn, lo, hi));
+		content.append(renderModelShare(dailyIn));
+	}
+
+	// ---- filters ----
+	const RANGES = [["day", "Day"], ["week", "Week"], ["month", "Month"], ["year", "Year"], ["all", "All time"]];
+	function renderFilters(dailyIn) {
+		const row = el("div", { class: "filters" });
+		const rangeGroup = el("div", { class: "chip-group", role: "group", "aria-label": "Time range" });
+		for (const [key, label] of RANGES) {
+			rangeGroup.append(el("button", {
+				class: "chip", "aria-pressed": String(state.range === key), text: label,
+				onclick: () => { state.range = key; state.anchor = parseDay(lastDataDay); render(); },
+			}));
+		}
+		row.append(rangeGroup);
+
+		if (state.range !== "all") {
+			const atEnd = periodBounds()[1] >= today;
+			row.append(el("div", { class: "pnav" },
+				el("button", { text: "‹", "aria-label": "Previous period", onclick: () => { shiftAnchor(-1); render(); } }),
+				el("span", { class: "plabel", text: periodLabel() }),
+				el("button", { text: "›", "aria-label": "Next period", disabled: atEnd ? "" : null, onclick: () => { shiftAnchor(1); render(); } }),
+			));
+		}
+
+		row.append(el("div", { class: "divider" }));
+		const modelGroup = el("div", { class: "chip-group", role: "group", "aria-label": "Model filter" });
+		modelGroup.append(el("button", {
+			class: "chip", "aria-pressed": String(state.model === null), text: "All models",
+			onclick: () => { state.model = null; render(); },
+		}));
+		// One chip per family; the selected family's version chips expand inline after it.
+		// Families/versions with no usage in the range are hidden, except the selected one
+		// (it must stay visible so the filter can be cleared).
+		const used = new Set();
+		for (const r of dailyIn) for (const b of r.modelBreakdowns || []) used.add(b.modelName);
+		const selFam = !state.model ? null : isFamFilter() ? state.model.slice(4) : familyOf(state.model);
+		for (const f of FAMILIES) {
+			const versions = familyModels(f).filter(m => used.has(m) || m === state.model);
+			if (!versions.length && f !== selFam) continue;
+			const key = `fam:${f}`;
+			// a single-version family has no version chips, so its chip carries the version itself
+			const only = familyModels(f).length === 1 ? familyModels(f)[0] : null;
+			modelGroup.append(el("button", {
+				class: f === selFam && state.model !== key ? "chip within" : "chip", "aria-pressed": String(state.model === key),
+				onclick: () => { state.model = state.model === key ? null : key; render(); },
+			}, el("span", { class: "swatch", style: `background:${famFill(f)}` }), only ? prettyModel(only) : famLabel(f)));
+			if (f !== selFam || only) continue;
+			for (const m of versions) {
+				modelGroup.append(el("button", {
+					class: "chip ver", "aria-pressed": String(state.model === m), title: prettyModel(m),
+					onclick: () => { state.model = state.model === m ? key : m; render(); },
+				}, el("span", { class: "swatch", style: `background:${fillOf(m)}` }), verLabel(m) || prettyModel(m)));
+			}
+		}
+		row.append(modelGroup);
+		return row;
+	}
+
+	// ---- cache savings ----
+	// Anthropic's prompt caching keeps a fixed price relationship across all Claude
+	// model tiers: cache reads cost ~10% of a fresh input token, cache writes cost
+	// ~125% (5-min TTL), and output tokens are consistently priced ~5x input. Those
+	// ratios let us back out an implied per-token input price from each breakdown's
+	// own cost — no hardcoded price table needed — then value the cache reads at
+	// that implied price to estimate what they would have cost without caching.
+	const OUTPUT_PRICE_RATIO = 5;
+	const CACHE_WRITE_RATIO = 1.25;
+	const CACHE_READ_RATIO = 0.1;
+	function estimatedSavings(b) {
+		const weighted = (b.inputTokens || 0) + OUTPUT_PRICE_RATIO * (b.outputTokens || 0)
+			+ CACHE_WRITE_RATIO * (b.cacheCreationTokens || 0) + CACHE_READ_RATIO * (b.cacheReadTokens || 0);
+		if (weighted <= 0 || !b.cost) return 0;
+		const impliedInputPrice = b.cost / weighted;
+		return (b.cacheReadTokens || 0) * (1 - CACHE_READ_RATIO) * impliedInputPrice;
+	}
+	function cacheStats(dailyIn) {
+		let savings = 0, cacheRead = 0, freshInput = 0;
+		for (const r of dailyIn) {
+			for (const mb of r.modelBreakdowns || []) {
+				if (!modelMatch(mb.modelName)) continue;
+				savings += estimatedSavings(mb);
+				cacheRead += mb.cacheReadTokens || 0;
+				freshInput += mb.inputTokens || 0;
+			}
+		}
+		const hitRate = (cacheRead + freshInput) > 0 ? cacheRead / (cacheRead + freshInput) * 100 : 0;
+		return { savings, cacheRead, freshInput, hitRate };
+	}
+
+	// ---- KPI tiles ----
+	function renderKPIs(dailyIn, lo, hi) {
+		const a = aggregate(dailyIn);
+		const grid = el("div", { class: "kpis" });
+
+		const divisor = avgDivisor(lo, hi);
+		const unit = avgUnit();
+		const avgText = (raw, fmt) => divisor ? `${fmt(raw / divisor)} avg/${unit}` : null;
+
+		// delta vs previous period (cost only; spend direction is neutral, so no color)
+		let deltaText = null;
+		if (state.range !== "all") {
+			const saved = state.anchor;
+			shiftAnchor(-1);
+			const [plo, phi] = periodBounds();
+			state.anchor = saved;
+			const prev = aggregate(daily.filter(r => inRange(r.period, plo, phi)));
+			if (prev.cost > 0) {
+				const pct = (a.cost - prev.cost) / prev.cost * 100;
+				deltaText = `${pct >= 0 ? "+" : ""}${pct.toFixed(0)}% vs previous ${state.range}`;
+			}
+		}
+
+		const cache = cacheStats(dailyIn);
+		const tiles = [
+			["Total cost", fmtUSD(a.cost), true, deltaText, avgText(a.cost, fmtUSD)],
+			["Total tokens", fmtTok(totalTokens(a)), false, null, avgText(totalTokens(a), fmtTok)],
+			["Output tokens", fmtTok(a.outputTokens), false, null, avgText(a.outputTokens, fmtTok)],
+			["Input tokens", fmtTok(a.inputTokens), false, null, avgText(a.inputTokens, fmtTok)],
+			["Cache read", fmtTok(a.cacheReadTokens), false, null, avgText(a.cacheReadTokens, fmtTok)],
+			["Cache write", fmtTok(a.cacheCreationTokens), false, null, avgText(a.cacheCreationTokens, fmtTok)],
+			["Cache savings", fmtUSD(cache.savings), false, "vs. full price for cache reads", avgText(cache.savings, fmtUSD)],
+			["Cache hit rate", cache.hitRate.toFixed(1) + "%", false, `${fmtTok(cache.cacheRead)} reads vs ${fmtTok(cache.freshInput)} input`, null],
+		];
+		for (const [label, value, hero, delta, avg] of tiles) {
+			grid.append(el("div", { class: hero ? "tile hero" : "tile" },
+				el("div", { class: "tlabel", text: label }),
+				el("div", { class: "tvalue", text: value }),
+				delta ? el("div", { class: "tdelta", text: delta }) : null,
+				avg ? el("div", { class: "tavg", text: avg }) : null,
+			));
+		}
+		return grid;
+	}
+
+	// ---- trend chart ----
+	const METRICS = [
+		["cost", "Cost", a => a.cost, fmtUSDshort, fmtUSD],
+		["total", "Total tokens", totalTokens, fmtTok, fmtTok],
+		["output", "Output tokens", a => a.outputTokens, fmtTok, fmtTok],
+		["input", "Input tokens", a => a.inputTokens, fmtTok, fmtTok],
+	];
+
+	// bucket granularity: day (day/week/month), month (year), quarter (all time)
+	const trendMode = () => state.range === "all" ? "quarter" : state.range === "year" ? "month" : "day";
+	const quarterKey = ymd => `${ymd.slice(0, 4)}-Q${Math.ceil(+ymd.slice(5, 7) / 3)}`;
+	const quarterLabel = key => `Q${key.slice(6)} ${key.slice(0, 4)}`;
+	// which bucket a given YYYY-MM-DD day falls into, per the current granularity
+	const trendKeyFor = day => { const m = trendMode(); return m === "quarter" ? quarterKey(day) : m === "month" ? day.slice(0, 7) : day; };
+
+	// build the continuous (gap-filled) set of empty buckets for the current range
+	function makeTrendBuckets(lo, hi) {
+		const mode = trendMode();
+		const buckets = new Map(); // key -> {key,label,perModel:Map,total:agg}
+		const add = (key, label) => buckets.set(key, { key, label, perModel: new Map(), total: zeroAgg() });
+		if (mode === "quarter") {
+			const from = (daily[0]?.period || today), to = (daily[daily.length - 1]?.period || today);
+			const toKey = quarterKey(to);
+			let y = +from.slice(0, 4), q = Math.ceil(+from.slice(5, 7) / 3);
+			while (`${y}-Q${q}` <= toKey) {
+				add(`${y}-Q${q}`, quarterLabel(`${y}-Q${q}`));
+				if (++q > 4) { q = 1; y++; }
+			}
+		} else if (mode === "month") {
+			const from = `${state.anchor.getFullYear()}-01`, to = `${state.anchor.getFullYear()}-12`;
+			let [y, m] = [+from.slice(0, 4), +from.slice(5, 7)];
+			while (`${y}-${pad(m)}` <= to) {
+				add(`${y}-${pad(m)}`, fmtMonthLabel(`${y}-${pad(m)}`));
+				if (++m > 12) { m = 1; y++; }
+			}
+		} else {
+			for (let d = parseDay(lo); dstr(d) <= hi; d.setDate(d.getDate() + 1)) add(dstr(d), fmtDayLabel(dstr(d)));
+		}
+		return buckets;
+	}
+
+	function trendBuckets(dailyIn, lo, hi, allModels) {
+		const buckets = makeTrendBuckets(lo, hi);
+		for (const r of dailyIn) {
+			const b = buckets.get(trendKeyFor(r.period));
+			if (!b) continue;
+			addRecordTotals(b.total, r);
+			for (const mb of r.modelBreakdowns || []) {
+				if (!allModels && !modelMatch(mb.modelName)) continue;
+				if (!b.perModel.has(mb.modelName)) b.perModel.set(mb.modelName, zeroAgg());
+				addBreakdown(b.perModel.get(mb.modelName), mb);
+			}
+		}
+		return [...buckets.values()];
+	}
+
+	const seriesColor = (k, flat) => fillOf(k, flat);
+	const seriesFill = k => svgFillOf(k);
+	const seriesName = k => k === OTHER ? "Other" : k.startsWith("older:") ? `${famLabel(k.slice(6))} (older)` : prettyModel(k);
+
+	// Caps the per-model series a chart draws. Older versions of a family share one
+	// shade, so when several are present they fold into one "<Family> (older)" series.
+	// Past MAX_SERIES, the smallest series (by the chart's metric over the range) fold
+	// into a gray "Other". Colors follow the entity, so survivors keep their paint.
+	const MAX_SERIES = 6;
+	function foldSeries(buckets, models, mGet) {
+		const olderCount = new Map();
+		for (const m of models) if (versionRank.get(m) > 0) olderCount.set(familyOf(m), (olderCount.get(familyOf(m)) || 0) + 1);
+		const keyOf = new Map(models.map(m => [m, versionRank.get(m) > 0 && olderCount.get(familyOf(m)) > 1 ? `older:${familyOf(m)}` : m]));
+		let keys = [...new Set(keyOf.values())];
+		if (keys.length > MAX_SERIES) {
+			const totals = new Map(keys.map(k => [k, 0]));
+			for (const b of buckets) for (const [m, a] of b.perModel) if (keyOf.has(m)) totals.set(keyOf.get(m), totals.get(keyOf.get(m)) + mGet(a));
+			const keep = new Set([...keys].sort((a, b) => totals.get(b) - totals.get(a)).slice(0, MAX_SERIES - 1));
+			for (const [m, k] of keyOf) if (!keep.has(k)) keyOf.set(m, OTHER);
+			keys = [...keys.filter(k => keep.has(k)), OTHER];
+		}
+		const folded = buckets.map(b => {
+			const perModel = new Map();
+			for (const [m, a] of b.perModel) {
+				const k = keyOf.get(m) || m;
+				if (!perModel.has(k)) perModel.set(k, zeroAgg());
+				addAgg(perModel.get(k), a);
+			}
+			return { ...b, perModel };
+		});
+		return [folded, keys];
+	}
+
+	function renderTrend(dailyIn, lo, hi) {
+		const card = el("div", { class: "card" });
+		const [, mLabel, mGet, , mFmtFull] = METRICS.find(m => m[0] === state.metric);
+
+		const metricGroup = el("div", { class: "chip-group", role: "group", "aria-label": "Metric" });
+		for (const [key, label] of METRICS) {
+			metricGroup.append(el("button", {
+				class: "chip", "aria-pressed": String(state.metric === key), text: label,
+				onclick: () => { state.metric = key; render(); },
+			}));
+		}
+
+		const granularity = state.range === "all" ? "quarter" : state.range === "year" ? "month" : "day";
+		card.append(el("div", { class: "card-head" },
+			el("div", {},
+				el("h2", { text: `${mLabel} per ${granularity}` }),
+				el("div", { class: "sub", text: periodLabel() + (state.model ? ` · ${filterLabel()}` : "") })),
+			metricGroup,
+		));
+
+		const raw = trendBuckets(dailyIn, lo, hi);
+		const [buckets, seriesModels] = foldSeries(raw, MODELS.filter(m => raw.some(b => b.perModel.has(m))), mGet);
+
+		if (!buckets.some(b => mGet(sumPerModel(b)) > 0)) {
+			card.append(el("div", { class: "empty", text: "No usage in this period." }));
+			return card;
+		}
+
+		if (seriesModels.length > 1) {
+			const legend = el("div", { class: "legend" });
+			for (const m of seriesModels) {
+				legend.append(el("span", { class: "lkey" },
+					el("span", { class: "swatch", style: `background:${seriesColor(m)}` }), seriesName(m)));
+			}
+			card.append(legend);
+		}
+
+		const box = el("div", { class: "chart-box" });
+		card.append(box);
+		// draw after insertion so clientWidth is real
+		requestAnimationFrame(() => drawTrendChart(box, card, buckets, seriesModels));
+		return card;
+	}
+
+	function sumPerModel(bucket) {
+		const a = zeroAgg();
+		for (const v of bucket.perModel.values()) addAgg(a, v);
+		return a;
+	}
+
+	function niceTicks(max, count) {
+		if (max <= 0) return [0, 1];
+		const step = Math.pow(10, Math.floor(Math.log10(max / count)));
+		const err = max / count / step;
+		const mult = err >= 7.5 ? 10 : err >= 3.5 ? 5 : err >= 1.5 ? 2 : 1;
+		const s = step * mult;
+		const ticks = [];
+		for (let v = 0; v <= max + s * 0.999; v += s) ticks.push(v);
+		return ticks;
+	}
+
+	function drawTrendChart(box, card, buckets, seriesModels) {
+		const [, , mGet, mFmtAxis, mFmtFull] = METRICS.find(m => m[0] === state.metric);
+		const W = Math.max(320, box.clientWidth);
+		const PLOT_H = 240, AXIS_H = 26, PAD_L = 52, PAD_R = 8, PAD_T = 10;
+		const H = PLOT_H + AXIS_H;
+		const plotW = W - PAD_L - PAD_R;
+		const root = svg("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Usage trend chart" });
+
+		const maxVal = Math.max(...buckets.map(b => mGet(sumPerModel(b))), 0);
+		const ticks = niceTicks(maxVal, 4);
+		const top = ticks[ticks.length - 1];
+		const y = v => PAD_T + (PLOT_H - PAD_T) * (1 - v / top);
+		const baseline = y(0);
+
+		// gridlines + y labels (solid hairlines, recessive)
+		for (const t of ticks) {
+			root.append(svg("line", { x1: PAD_L, x2: W - PAD_R, y1: y(t), y2: y(t), stroke: t === 0 ? "var(--axis)" : "var(--grid)", "stroke-width": 1 }));
+			root.append(svg("text", { x: PAD_L - 8, y: y(t) + 4, "text-anchor": "end", fill: "var(--muted)", "font-size": 11, style: "font-variant-numeric:tabular-nums" }, mFmtAxis(t)));
+		}
+
+		const n = buckets.length;
+		const band = plotW / n;
+		const barW = Math.min(24, Math.max(3, band * 0.6));
+		const xLabelStep = Math.ceil(n / Math.max(2, Math.floor(plotW / 72)));
+
+		function topRoundRect(x, yTop, w, h, r) {
+			r = Math.min(r, h, w / 2);
+			return `M${x},${yTop + h} L${x},${yTop + r} Q${x},${yTop} ${x + r},${yTop} L${x + w - r},${yTop} Q${x + w},${yTop} ${x + w},${yTop + r} L${x + w},${yTop + h} Z`;
+		}
+
+		const tooltip = el("div", { class: "tooltip" });
+		card.append(tooltip);
+
+		buckets.forEach((b, i) => {
+			const cx = PAD_L + band * i + band / 2;
+			const x0 = cx - barW / 2;
+			const group = svg("g", {});
+
+			// stacked segments, fixed model order, 2px surface gaps between fills
+			const present = seriesModels.filter(m => b.perModel.has(m) && mGet(b.perModel.get(m)) > 0);
+			let yCursor = baseline;
+			present.forEach((m, si) => {
+				const hpx = (mGet(b.perModel.get(m)) / top) * (PLOT_H - PAD_T);
+				const isTop = si === present.length - 1;
+				const gap = isTop ? 0 : 2;
+				const h = Math.max(0.75, hpx - gap);
+				const yTop = yCursor - hpx;
+				if (isTop) {
+					group.append(svg("path", { d: topRoundRect(x0, yTop, barW, h, 4), fill: seriesFill(m) }));
+				} else {
+					group.append(svg("rect", { x: x0, y: yTop, width: barW, height: h, fill: seriesFill(m) }));
+				}
+				yCursor = yTop;
+			});
+
+			// x labels, thinned
+			if (i % xLabelStep === 0) {
+				root.append(svg("text", { x: cx, y: PLOT_H + 17, "text-anchor": "middle", fill: "var(--muted)", "font-size": 11 }, b.label));
+			}
+
+			// hover/focus hit band (bigger than the mark)
+			const hit = svg("rect", { class: "hitband", x: PAD_L + band * i, y: 0, width: band, height: PLOT_H, tabindex: 0, "aria-label": `${b.label}: ${mFmtFull(mGet(sumPerModel(b)))}` });
+			const show = () => {
+				group.setAttribute("opacity", "0.82");
+				tooltip.replaceChildren(el("div", { class: "tt-title", text: b.label }));
+				for (const m of present.slice().reverse()) {
+					tooltip.append(el("div", { class: "tt-row" },
+						el("span", { class: "lk", style: `background:${seriesColor(m, true)}` }),
+						el("span", { class: "nm", text: seriesName(m) }),
+						el("span", { class: "vl", text: mFmtFull(mGet(b.perModel.get(m))) })));
+				}
+				if (present.length > 1) {
+					tooltip.append(el("div", { class: "tt-row" },
+						el("span", { class: "lk" }),
+						el("span", { class: "nm", text: "Total" }),
+						el("span", { class: "vl", text: mFmtFull(mGet(sumPerModel(b))) })));
+				}
+				tooltip.style.display = "block";
+				const cardRect = card.getBoundingClientRect();
+				const boxRect = box.getBoundingClientRect();
+				let left = boxRect.left - cardRect.left + cx + 12;
+				if (left + tooltip.offsetWidth > card.clientWidth - 12) left = boxRect.left - cardRect.left + cx - tooltip.offsetWidth - 12;
+				tooltip.style.left = Math.max(4, left) + "px";
+				tooltip.style.top = (boxRect.top - cardRect.top + 24) + "px";
+			};
+			const hide = () => { group.removeAttribute("opacity"); tooltip.style.display = "none"; };
+			hit.addEventListener("pointerenter", show);
+			hit.addEventListener("pointerleave", hide);
+			hit.addEventListener("focus", show);
+			hit.addEventListener("blur", hide);
+
+			root.append(group, hit);
+		});
+
+		box.replaceChildren(root);
+	}
+
+	// ---- model mix (100%-stacked share over time) ----
+	// Normalizes each bucket to full height so the shift between models reads
+	// independent of volume. Always shows every model, ignoring the model filter.
+	function renderModelMix(dailyIn, lo, hi) {
+		const card = el("div", { class: "card" });
+		const [, mLabel, mGet, , mFmtFull] = METRICS.find(m => m[0] === state.metric);
+		const granularity = state.range === "all" ? "quarter" : state.range === "year" ? "month" : "day";
+
+		card.append(el("div", { class: "card-head" },
+			el("div", {},
+				el("h2", { text: `${mLabel} mix over time` }),
+				el("div", { class: "sub", text: `${periodLabel()} · share by model, normalized per ${granularity}` }))));
+
+		const raw = trendBuckets(dailyIn, lo, hi, true);
+		const [buckets, models] = foldSeries(raw, MODELS.filter(m => raw.some(b => b.perModel.has(m) && mGet(b.perModel.get(m)) > 0)), mGet);
+
+		if (models.length === 0) {
+			card.append(el("div", { class: "empty", text: "No usage in this period." }));
+			return card;
+		}
+
+		const legend = el("div", { class: "legend" });
+		for (const m of models) {
+			legend.append(el("span", { class: "lkey" },
+				el("span", { class: "swatch", style: `background:${seriesColor(m)}` }), seriesName(m)));
+		}
+		card.append(legend);
+
+		const box = el("div", { class: "chart-box" });
+		card.append(box);
+		requestAnimationFrame(() => drawMixChart(box, card, buckets, models, mGet, mFmtFull));
+		return card;
+	}
+
+	function drawMixChart(box, card, buckets, models, mGet, mFmtFull) {
+		const W = Math.max(320, box.clientWidth);
+		const PLOT_H = 200, AXIS_H = 26, PAD_L = 44, PAD_R = 8, PAD_T = 10;
+		const H = PLOT_H + AXIS_H;
+		const plotW = W - PAD_L - PAD_R;
+		const root = svg("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Model mix over time" });
+
+		const y = p => PAD_T + (PLOT_H - PAD_T) * (1 - p); // p in [0,1]
+		const baseline = y(0);
+
+		// gridlines + percent labels
+		for (const p of [0, 0.25, 0.5, 0.75, 1]) {
+			root.append(svg("line", { x1: PAD_L, x2: W - PAD_R, y1: y(p), y2: y(p), stroke: p === 0 ? "var(--axis)" : "var(--grid)", "stroke-width": 1 }));
+			root.append(svg("text", { x: PAD_L - 8, y: y(p) + 4, "text-anchor": "end", fill: "var(--muted)", "font-size": 11, style: "font-variant-numeric:tabular-nums" }, `${p * 100}%`));
+		}
+
+		const n = buckets.length;
+		const band = plotW / n;
+		const barW = Math.min(40, Math.max(4, band * 0.74));
+		const xLabelStep = Math.ceil(n / Math.max(2, Math.floor(plotW / 72)));
+
+		function topRoundRect(x, yTop, w, h, r) {
+			r = Math.min(r, h, w / 2);
+			return `M${x},${yTop + h} L${x},${yTop + r} Q${x},${yTop} ${x + r},${yTop} L${x + w - r},${yTop} Q${x + w},${yTop} ${x + w},${yTop + r} L${x + w},${yTop + h} Z`;
+		}
+		const fmtPct = s => s >= 0.095 ? Math.round(s * 100) + "%" : (s * 100).toFixed(1) + "%";
+
+		const tooltip = el("div", { class: "tooltip" });
+		card.append(tooltip);
+
+		buckets.forEach((b, i) => {
+			const cx = PAD_L + band * i + band / 2;
+			const x0 = cx - barW / 2;
+			const group = svg("g", {});
+
+			const present = models.filter(m => b.perModel.has(m) && mGet(b.perModel.get(m)) > 0);
+			const total = present.reduce((s, m) => s + mGet(b.perModel.get(m)), 0);
+
+			// x labels, thinned
+			if (i % xLabelStep === 0) {
+				root.append(svg("text", { x: cx, y: PLOT_H + 17, "text-anchor": "middle", fill: "var(--muted)", "font-size": 11 }, b.label));
+			}
+
+			// stacked share segments (only when there is usage), 2px surface gaps
+			if (total > 0) {
+				const shareH = PLOT_H - PAD_T; // full plot height == 100%
+				let yCursor = baseline;
+				present.forEach((m, si) => {
+					const hpx = (mGet(b.perModel.get(m)) / total) * shareH;
+					const isTop = si === present.length - 1;
+					const gap = isTop ? 0 : 2;
+					const h = Math.max(0.75, hpx - gap);
+					const yTop = yCursor - hpx;
+					if (isTop) {
+						group.append(svg("path", { d: topRoundRect(x0, yTop, barW, h, 4), fill: seriesFill(m) }));
+					} else {
+						group.append(svg("rect", { x: x0, y: yTop, width: barW, height: h, fill: seriesFill(m) }));
+					}
+					yCursor = yTop;
+				});
+				root.append(group);
+			}
+
+			// hover/focus hit band
+			const hit = svg("rect", { class: "hitband", x: PAD_L + band * i, y: 0, width: band, height: PLOT_H, tabindex: 0, "aria-label": `${b.label} model mix` });
+			const show = () => {
+				if (total <= 0) return;
+				group.setAttribute("opacity", "0.82");
+				tooltip.replaceChildren(el("div", { class: "tt-title", text: b.label }));
+				for (const m of present.slice().reverse()) {
+					const share = mGet(b.perModel.get(m)) / total;
+					tooltip.append(el("div", { class: "tt-row" },
+						el("span", { class: "lk", style: `background:${seriesColor(m, true)}` }),
+						el("span", { class: "nm", text: seriesName(m) }),
+						el("span", { class: "vl", text: `${fmtPct(share)} · ${mFmtFull(mGet(b.perModel.get(m)))}` })));
+				}
+				tooltip.style.display = "block";
+				const cardRect = card.getBoundingClientRect();
+				const boxRect = box.getBoundingClientRect();
+				let left = boxRect.left - cardRect.left + cx + 12;
+				if (left + tooltip.offsetWidth > card.clientWidth - 12) left = boxRect.left - cardRect.left + cx - tooltip.offsetWidth - 12;
+				tooltip.style.left = Math.max(4, left) + "px";
+				tooltip.style.top = (boxRect.top - cardRect.top + 24) + "px";
+			};
+			const hide = () => { group.removeAttribute("opacity"); tooltip.style.display = "none"; };
+			hit.addEventListener("pointerenter", show);
+			hit.addEventListener("pointerleave", hide);
+			hit.addEventListener("focus", show);
+			hit.addEventListener("blur", hide);
+			root.append(hit);
+		});
+
+		box.replaceChildren(root);
+	}
+
+	// ---- model share ----
+	// Part-to-whole cost bar with a legend; tokens and per-model detail tables
+	// are intentionally left out of this public page.
+	function renderModelShare(dailyIn) {
+		const card = el("div", { class: "card" });
+		card.append(el("div", { class: "card-head" },
+			el("div", {},
+				el("h2", { text: "Cost share by model" }),
+				el("div", { class: "sub", text: periodLabel() }))));
+
+		const per = new Map();
+		for (const r of dailyIn) {
+			for (const mb of r.modelBreakdowns || []) {
+				if (!modelMatch(mb.modelName)) continue;
+				per.set(mb.modelName, (per.get(mb.modelName) || 0) + (mb.cost || 0));
+			}
+		}
+		const rows = MODELS.filter(m => per.get(m) > 0).map(m => [m, per.get(m)]);
+		const totalCost = rows.reduce((s, [, c]) => s + c, 0);
+
+		if (rows.length === 0) {
+			card.append(el("div", { class: "empty", text: "No usage in this period." }));
+			return card;
+		}
+
+		// 2px surface gaps between segments
+		const bar = el("div", { class: "sharebar", role: "img", "aria-label": "Cost share by model" });
+		for (const [m, c] of rows) {
+			bar.append(el("i", { title: `${prettyModel(m)}: ${fmtUSD(c)}`, style: `background:${fillOf(m)};flex:${Math.max(c, totalCost * 0.004)} 0 0` }));
+		}
+		card.append(bar);
+
+		const legend = el("div", { class: "legend" });
+		for (const [m, c] of rows) {
+			legend.append(el("span", { class: "lkey" },
+				el("span", { class: "swatch", style: `background:${fillOf(m)}` }), prettyModel(m),
+				el("span", { class: "lval", text: `${fmtUSD(c)} · ${(c / totalCost * 100).toFixed(1)}%` })));
+		}
+		card.append(legend);
+		return card;
+	}
+
+	let resizeTimer;
+	window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 150); });
+
+	render();
+})();
+</script>
+</body>
+</html>

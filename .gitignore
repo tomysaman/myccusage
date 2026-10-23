@@ -1,0 +1,8 @@
+.claude/
+
+# raw ccusage data must never be committed here (public repo)
+*.json
+
+# macOS
+.DS_Store
+._*
