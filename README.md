@@ -1,40 +1,7 @@
 # myccusage
 
-Public dashboard of my Claude Code usage and cost, served by GitHub Pages from `index.html`.
+A public dashboard of my Claude Code usage and cost: daily spend, token counts, cache savings, and how usage splits across Claude models.
 
-The data comes from my private `ccusage` repo. `update-data.ps1` (or `update-data.sh`) downloads its merged data and writes `data.js` with per-day, per-model token and cost totals, with all machines summed together.
+**View it at https://tomysaman.github.io/myccusage/**
 
-Nothing with a time of day is published. Billing blocks, session ids, project names, machine tags and raw ccusage output are left out.
-
-## Update the data
-
-You need the [GitHub CLI](https://cli.github.com/), logged in (`gh auth login`) with an account that can read `tomysaman/ccusage`.
-
-Windows PowerShell:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\update-data.ps1
-```
-
-macOS (needs `node`):
-
-```sh
-./update-data.sh
-```
-
-Both scripts write the same `data.js`.
-
-Then commit and push `data.js`:
-
-```sh
-git add data.js && git commit -m "Data update" && git push
-```
-
-Options:
-
-- `-Repo owner/name` (`--repo` in the .sh) reads from a different source repo.
-- `-Source path/to/data.js` (`--source` in the .sh) reads a local copy instead of GitHub.
-
-## View locally
-
-Open `index.html` in a browser. It loads `data.js` from the same folder and makes no other requests.
+To refresh the data, see [docs/updating-data.md](docs/updating-data.md).
