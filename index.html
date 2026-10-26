@@ -129,7 +129,10 @@ header .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
 	<div id="content"></div>
 </div>
 
-<script src="data.js"></script>
+<script>
+// cache buster: GitHub Pages serves data.js with max-age=600, so a plain reload can show stale data
+document.write('<script src="data.js?v=' + Date.now() + '"><\/script>');
+</script>
 <script>
 "use strict";
 (function () {
